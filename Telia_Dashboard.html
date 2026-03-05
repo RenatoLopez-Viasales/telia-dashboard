@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telia Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Viasales Brand Palette ─────────────────────────────────────────────────
+   Primär gradient: #F06969 (korall) → #F0965A (orange)
+   Neutraler: Mörkgrå text, ljusgrå bakgrund, vita kort
+   Accent: En enda tonat grå-röd för badges – inga externa färger
+   Status: Tre nyanser ur samma varma skala
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  --brand-top:    #F06969;
+  --brand-bot:    #F0965A;
+  --brand-mid:    #F07E62;
+  --brand-grad:   linear-gradient(135deg, #F06969 0%, #F0965A 100%);
+  --brand-light:  #FEF0EC;
+  --brand-border: #F9D4C8;
+
+  --bg:       #F7F5F4;
+  --surface:  #FFFFFF;
+  --border:   #EDE8E5;
+  --text-1:   #1C1917;
+  --text-2:   #6B6460;
+  --text-3:   #A89E9A;
+
+  /* Status – warm monochromatic scale, no random greens/reds */
+  --status-high:   #2D9E6B;   /* gott om – en neutral grön, inte neon */
+  --status-mid:    #E09A3A;   /* börjar ta slut – varm amber */
+  --status-low:    #D95F5F;   /* kritiskt – varm röd, nära brand */
+
+  /* Nät-badges: alla ur brand-paletten, varierade mättnad */
+  --net-telia-bg:  #FEF0EC; --net-telia-fg: #C4523F;
+  --net-lag-bg:    #FDF5EE; --net-lag-fg:   #B8722A;
+  --net-hog-bg:    #FEF0EC; --net-hog-fg:   #A3432F;
+  --net-special-bg:#FDF3F0; --net-special-fg:#8C3D2B;
+
+  --radius-card: 10px;
+  --radius-sm:   6px;
+  --shadow-card: 0 1px 3px rgba(28,25,23,.06), 0 4px 12px rgba(240,105,105,.05);
+}
+
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text-1); font-size:14px; }
+
+/* ── Topbar ─────────────────────────────────────────────────────────────── */
+.topbar {
+  display:flex; align-items:center; justify-content:space-between;
+  background:var(--surface); padding:8px 16px;
+  border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10;
+}
+.topbar-left { display:flex; align-items:center; gap:10px; }
+.logo {
+  width:32px; height:32px; border-radius:9px;
+  background:var(--brand-grad);
+  display:flex; align-items:center; justify-content:center;
+  color:#fff; font-weight:700; font-size:14px; letter-spacing:-.5px;
+}
+.topbar-title { font-weight:600; font-size:15px; color:var(--text-1); }
+.topbar-sep { color:var(--border); font-size:18px; margin:0 2px; }
+.topbar-sub { font-size:13px; color:var(--text-3); font-weight:400; }
+.topbar-right { display:flex; align-items:center; gap:8px; }
+
+.last-updated {
+  display:flex; align-items:center; gap:6px;
+  background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:5px 12px; font-size:11px; color:var(--text-2);
+}
+.last-updated .dot { width:7px; height:7px; border-radius:50%; background:var(--border); flex-shrink:0; transition:background .4s; }
+.last-updated.fresh .dot { background:var(--status-high); }
+.last-updated .lbl { color:var(--text-3); }
+.last-updated .val { font-weight:600; color:var(--text-1); font-family:'DM Mono',monospace; font-size:11px; }
+
+.btn-primary {
+  padding:7px 16px; border:none; border-radius:var(--radius-sm);
+  background:var(--brand-grad); color:#fff; font-size:12px; font-weight:600;
+  cursor:pointer; font-family:inherit; letter-spacing:.2px;
+  box-shadow:0 2px 8px rgba(240,105,105,.25); transition:opacity .15s;
+}
+.btn-primary:hover { opacity:.88; }
+.btn-export {
+  padding:7px 16px; border:1.5px solid var(--brand-top); border-radius:var(--radius-sm);
+  background:var(--surface); color:var(--brand-top); font-size:12px; font-weight:600;
+  cursor:pointer; font-family:inherit; letter-spacing:.2px; transition:all .15s; display:none;
+}
+.btn-export:hover { background:var(--brand-light); }
+.btn-export.visible { display:inline-flex; align-items:center; gap:6px; }
+.btn-export .export-dot { width:7px; height:7px; border-radius:50%; background:var(--brand-top); animation:pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ── Main ───────────────────────────────────────────────────────────────── */
+main { padding:12px 16px; max-width:1140px; margin:0 auto; }
+
+/* ── KPI Cards ──────────────────────────────────────────────────────────── */
+.kpi-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; }
+.kpi-card {
+  background:var(--surface); border-radius:var(--radius-card);
+  padding:11px 14px; border:1px solid var(--border);
+  box-shadow:var(--shadow-card); position:relative; overflow:hidden;
+}
+.kpi-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:var(--brand-grad);
+}
+.kpi-label {
+  font-size:9px; font-weight:700; color:var(--text-3);
+  text-transform:uppercase; letter-spacing:.9px; margin-bottom:3px;
+}
+.net-pill {
+  display:inline-block; font-size:9px; font-weight:600;
+  padding:1px 7px; border-radius:20px; margin-bottom:4px;
+  background:var(--brand-light); color:var(--brand-top);
+  border:1px solid var(--brand-border);
+}
+.kpi-val { font-size:26px; font-weight:700; line-height:1; color:var(--text-1); letter-spacing:-.5px; }
+.kpi-sub { font-size:10px; color:var(--text-3); margin-top:2px; }
+
+.saljare-inputs { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; }
+.inp-grp {
+  display:flex; align-items:center; gap:4px;
+  background:var(--bg); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:3px 8px; font-size:11px; color:var(--text-2);
+}
+.inp-grp input {
+  width:34px; border:none; background:transparent; font-size:12px;
+  font-weight:600; color:var(--text-1); text-align:center; outline:none;
+  font-family:'DM Mono',monospace;
+}
+
+/* ── Filter tabs ─────────────────────────────────────────────────────────── */
+.filter-bar { display:flex; gap:5px; margin-bottom:9px; flex-wrap:wrap; }
+.ftab {
+  display:flex; align-items:center; gap:5px; padding:4px 11px;
+  border-radius:20px; border:1.5px solid var(--border);
+  background:var(--surface); font-size:12px; font-weight:500;
+  cursor:pointer; color:var(--text-2); transition:all .15s; font-family:inherit;
+}
+.ftab .dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; background:var(--text-3); }
+.ftab .cnt { font-weight:700; color:var(--text-1); font-family:'DM Mono',monospace; font-size:11px; }
+.ftab:hover { background:var(--brand-light); border-color:var(--brand-border); }
+.ftab.active {
+  background:var(--brand-light); border-color:var(--brand-top);
+  color:var(--brand-top); font-weight:600;
+}
+.ftab.active .dot { background:var(--brand-top); }
+.ftab.active .cnt { color:var(--brand-top); }
+
+/* Net badge colors – all from brand warmth family */
+.np-alla    { background:var(--brand-light); color:var(--brand-top); border:1px solid var(--brand-border); }
+.np-telia   { background:var(--net-telia-bg); color:var(--net-telia-fg); border:1px solid #F3C8BC; }
+.np-lag     { background:var(--net-lag-bg);   color:var(--net-lag-fg);   border:1px solid #EDD5B8; }
+.np-hog     { background:var(--net-hog-bg);   color:var(--net-hog-fg);   border:1px solid #F3C0B0; }
+.np-special { background:var(--net-special-bg); color:var(--net-special-fg); border:1px solid #EFC0B0; }
+
+.nb-telia   { background:var(--net-telia-bg); color:var(--net-telia-fg); }
+.nb-lag     { background:var(--net-lag-bg);   color:var(--net-lag-fg);   }
+.nb-hog     { background:var(--net-hog-bg);   color:var(--net-hog-fg);   }
+.nb-special { background:var(--net-special-bg); color:var(--net-special-fg); }
+
+/* ── Controls ────────────────────────────────────────────────────────────── */
+.controls { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:9px; }
+.ctrl-lbl { font-size:9px; font-weight:700; color:var(--text-3); text-transform:uppercase; letter-spacing:.7px; margin-bottom:3px; }
+.ctrl-inp {
+  width:100%; padding:6px 10px; border:1px solid var(--border); border-radius:var(--radius-sm);
+  font-size:12px; font-family:inherit; background:var(--surface);
+  outline:none; color:var(--text-1); transition:border-color .15s;
+}
+.ctrl-inp:focus { border-color:var(--brand-top); }
+
+/* ── Legend ──────────────────────────────────────────────────────────────── */
+.legend { display:flex; align-items:center; gap:10px; margin-bottom:6px; font-size:11px; color:var(--text-2); flex-wrap:wrap; }
+.leg { display:flex; align-items:center; gap:5px; }
+.leg-dot { width:7px; height:7px; border-radius:50%; }
+.ort-cnt { margin-left:auto; font-size:11px; color:var(--text-3); font-weight:500; font-family:'DM Mono',monospace; }
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+.table-wrap { background:var(--surface); border-radius:var(--radius-card); border:1px solid var(--border); overflow:hidden; box-shadow:var(--shadow-card); }
+table { width:100%; border-collapse:collapse; }
+thead th {
+  padding:6px 10px; font-size:9px; font-weight:700; color:var(--text-3);
+  text-transform:uppercase; letter-spacing:.7px;
+  background:var(--bg); border-bottom:1px solid var(--border);
+  text-align:left; white-space:nowrap;
+}
+th:not(:first-child) { text-align:right; }
+th:nth-child(2) { text-align:left; }
+tbody tr { border-bottom:1px solid #F5F0EE; cursor:pointer; transition:background .1s; line-height:1.2; }
+tbody tr:last-child { border-bottom:none; }
+tbody tr:hover { background:#FDFAF9; }
+tbody tr.selected { background:var(--brand-light); border-left:3px solid var(--brand-top); }
+td { padding:6px 10px; vertical-align:middle; }
+td:not(:first-child) { text-align:right; }
+td:nth-child(2) { text-align:left; }
+
+.ort-cell { display:flex; align-items:center; gap:9px; }
+.r-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.ort-name { font-weight:600; font-size:12px; color:var(--text-1); }
+.ort-sub  { font-size:10px; color:var(--text-3); margin-top:0; }
+.net-badge { display:inline-block; font-size:10px; font-weight:600; padding:2px 7px; border-radius:5px; }
+.td-num  { font-size:12px; color:var(--text-2); font-family:'DM Mono',monospace; }
+.td-till { font-size:12px; color:var(--brand-mid); font-weight:700; font-family:'DM Mono',monospace; }
+.td-ater { font-size:12px; color:var(--text-1); font-weight:700; font-family:'DM Mono',monospace; }
+
+.prog-wrap { display:flex; align-items:center; gap:7px; justify-content:flex-end; }
+.prog-bg   { flex:1; max-width:60px; height:3px; background:var(--border); border-radius:3px; overflow:hidden; }
+.prog-fill { height:100%; border-radius:4px; background:var(--brand-grad); }
+.prog-pct  { font-size:10px; color:var(--text-3); min-width:28px; text-align:right; font-family:'DM Mono',monospace; }
+
+.salj-badge {
+  display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600;
+  padding:2px 8px; border-radius:20px;
+  background:var(--brand-light); color:var(--brand-top); border:1px solid var(--brand-border);
+}
+.salj-badge.low { background:#FDF5EE; color:var(--net-lag-fg); border-color:#EDD5B8; }
+
+.no-res { text-align:center; padding:40px; color:var(--text-3); font-size:14px; }
+
+/* ── Multi-select dropdown ──────────────────────────────────────────────── */
+.multi-select { position:relative; }
+.multi-trigger {
+  display:flex; align-items:center; justify-content:space-between;
+  width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:var(--radius-sm);
+  font-size:13px; font-family:inherit; background:var(--surface);
+  color:var(--text-2); cursor:pointer; user-select:none; transition:border-color .15s;
+}
+.logo-pair { display:flex; align-items:center; gap:10px; }
+.logo-divider { width:1px; height:22px; background:var(--border); }
+.multi-trigger:hover, .multi-trigger.open { border-color:var(--brand-top); }
+.multi-arrow { font-size:11px; color:var(--text-3); transition:transform .15s; }
+.multi-trigger.open .multi-arrow { transform:rotate(180deg); }
+.multi-panel {
+  position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:100;
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm);
+  box-shadow:0 4px 20px rgba(28,25,23,.12); overflow:hidden;
+}
+.multi-search-wrap { padding:8px; border-bottom:1px solid var(--border); }
+.multi-search {
+  width:100%; padding:6px 10px; border:1px solid var(--border); border-radius:6px;
+  font-size:12px; font-family:inherit; outline:none; background:var(--bg);
+}
+.multi-search:focus { border-color:var(--brand-top); }
+.multi-actions { display:flex; gap:6px; padding:6px 8px; border-bottom:1px solid var(--border); }
+.multi-action-btn {
+  font-size:11px; font-family:inherit; padding:3px 10px; border-radius:20px;
+  border:1px solid var(--border); background:var(--bg); color:var(--text-2);
+  cursor:pointer; transition:all .12s;
+}
+.multi-action-btn:hover { border-color:var(--brand-top); color:var(--brand-top); }
+.multi-list { max-height:200px; overflow-y:auto; padding:4px 0; }
+.multi-item {
+  display:flex; align-items:center; gap:8px; padding:7px 12px;
+  font-size:13px; cursor:pointer; color:var(--text-1); transition:background .1s;
+}
+.multi-item:hover { background:var(--brand-light); }
+.multi-item.checked { color:var(--brand-top); font-weight:500; }
+.multi-checkbox {
+  width:15px; height:15px; border-radius:4px; border:1.5px solid var(--border);
+  flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  font-size:10px; color:#fff; background:var(--surface); transition:all .12s;
+}
+.multi-item.checked .multi-checkbox { background:var(--brand-top); border-color:var(--brand-top); }
+.multi-chips { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; min-height:0; }
+.chip {
+  display:inline-flex; align-items:center; gap:5px;
+  background:var(--brand-light); border:1px solid var(--brand-border);
+  color:var(--brand-top); border-radius:20px; padding:3px 10px;
+  font-size:11px; font-weight:600;
+}
+.chip-x { cursor:pointer; font-size:13px; line-height:1; opacity:.7; }
+.chip-x:hover { opacity:1; }
+tbody tr.ort-selected td { background:var(--brand-light); }
+tbody tr.ort-selected td:first-child { border-left:3px solid var(--brand-top); padding-left:11px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo-pair">
+      <!-- Viasales logo: V in gradient circle -->
+      <svg width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="vsGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#F06969"/>
+            <stop offset="100%" stop-color="#F0965A"/>
+          </linearGradient>
+        </defs>
+        <circle cx="17" cy="17" r="16" fill="url(#vsGrad)"/>
+        <path d="M10 11 L17 23 L24 11" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+      <div class="logo-divider"></div>
+      <!-- Telia logo -->
+      <img src="data:image/svg+xml,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22utf-8%22%3F%3E%0A%3C%21--%20Generator%3A%20Adobe%20Illustrator%2026.0.1%2C%20SVG%20Export%20Plug-In%20.%20SVG%20Version%3A%206.00%20Build%200%29%20%20--%3E%0A%3Csvg%20version%3D%221.1%22%20id%3D%22Telia_Lock-up%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20xmlns%3Axlink%3D%22http%3A//www.w3.org/1999/xlink%22%20x%3D%220px%22%0A%09%20y%3D%220px%22%20viewBox%3D%220%200%20760.71%20300%22%20style%3D%22enable-background%3Anew%200%200%20760.71%20300%3B%22%20xml%3Aspace%3D%22preserve%22%3E%0A%3Cstyle%20type%3D%22text/css%22%3E%0A%09.st0%7Bfill%3A%23990AE3%3B%7D%0A%3C/style%3E%0A%3Cg%3E%0A%09%3Cg%3E%0A%09%09%3Cpath%20class%3D%22st0%22%20d%3D%22M455.19%2C105.91H408.9v130.4h-29.37v-130.4H332.8V80.54h122.39V105.91z%22/%3E%0A%09%09%3Cpath%20class%3D%22st0%22%20d%3D%22M543.31%2C188.47H461.2c2.89%2C16.47%2C14.69%2C27.37%2C29.82%2C27.37c11.35%2C0%2C20.47-5.12%2C26.04-13.57l21.81%2C13.13%0A%09%09%09c-11.13%2C14.91-29.37%2C23.81-47.84%2C23.81c-30.48%2C0-56.96-24.25-56.96-58.97s26.26-58.74%2C55.63-58.74%0A%09%09%09C528.18%2C121.49%2C547.09%2C152.2%2C543.31%2C188.47z%20M462.09%2C167.77h54.74c-3.34-14.46-12.68-23.59-27.15-23.59%0A%09%09%09C476.11%2C144.19%2C465.87%2C153.53%2C462.09%2C167.77z%22/%3E%0A%09%09%3Cpath%20class%3D%22st0%22%20d%3D%22M601.61%2C236.75c-4.23%2C0.89-8.68%2C1.11-12.68%2C1.11c-19.58%2C0-28.26-9.35-28.26-28.26V80.54h27.37v125.28%0A%09%09%09c0%2C9.57%2C5.79%2C10.9%2C13.57%2C10.01V236.75z%22/%3E%0A%09%09%3Cpath%20class%3D%22st0%22%20d%3D%22M615.85%2C93.45c0-8.68%2C7.57-15.8%2C16.24-15.8c8.46%2C0%2C16.02%2C7.12%2C16.02%2C15.8c0%2C8.68-7.57%2C15.8-16.02%2C15.8%0A%09%09%09C623.42%2C109.25%2C615.85%2C102.13%2C615.85%2C93.45z%20M618.3%2C236.31V125.05h27.37v111.26H618.3z%22/%3E%0A%09%09%3Cpath%20class%3D%22st0%22%20d%3D%22M760.71%2C157.54v78.77h-25.59V223.4c-8.68%2C11.35-22.48%2C15.58-34.05%2C15.58c-24.03%2C0-38.27-15.13-38.27-34.05%0A%09%09%09c0-21.58%2C24.26-39.16%2C53.85-39.16c5.79%2C0%2C12.02%2C0.45%2C17.58%2C2.23v-7.34c0-11.13-6.45-16.91-19.58-16.91%0A%09%09%09c-11.79%2C0-22.25%2C6.01-28.7%2C13.8l-19.36-14.24c10.9-12.68%2C29.6-21.58%2C48.51-21.58C744.69%2C121.71%2C760.71%2C134.62%2C760.71%2C157.54z%0A%09%09%09%20M734.23%2C193.36v-4.9c-4.45-1.56-9.12-2-14.91-2c-20.03%2C0-30.26%2C8.01-30.26%2C17.8c0%2C8.01%2C6.9%2C13.13%2C17.36%2C13.13%0A%09%09%09C720.21%2C217.39%2C734.23%2C209.16%2C734.23%2C193.36z%22/%3E%0A%09%3C/g%3E%0A%09%3Cg%3E%0A%09%09%3Cpath%20class%3D%22st0%22%20d%3D%22M196.36%2C210.79c38.9-22.56%2C73.94-60.82%2C84.99-88.1c3.14-22.58%2C3.78-25.43%2C4.16-50.27%0A%09%09%09c0.05-3.44-0.16-6.74-0.48-9.9c-2.27%2C36.48-49.42%2C82.35-111.8%2C112.32c-75.25%2C36.15-131.7%2C45.88-156.89%2C18.31%0A%09%09%09c8.75%2C17.28%2C14.49%2C25.67%2C24.33%2C38.49C69.73%2C257.38%2C130.89%2C248.77%2C196.36%2C210.79z%22/%3E%0A%09%09%3Cpath%20class%3D%22st0%22%20d%3D%22M164.46%2C148.99c70.98-34.24%2C120.42-82.95%2C111.8-115.24C262.11%2C9.31%2C233.47%2C0%2C202.76%2C0C111.73%2C0%2C0%2C60%2C0%2C136.55%0A%09%09%09c0%2C9.84%2C2.17%2C20.84%2C6.06%2C32.37C26.82%2C196.47%2C90.3%2C184.76%2C164.46%2C148.99z%22/%3E%0A%09%09%3Cpath%20class%3D%22st0%22%20d%3D%22M158.47%2C257.49L158.47%2C257.49c-49.92%2C20.24-78.49%2C13.79-94.28%2C1.17l-0.23-0.18%0A%09%09%09c24.44%2C24.38%2C52.3%2C41.53%2C76.73%2C41.53c42.78%2C0%2C101.35-51.9%2C129.07-132.38C254.14%2C196.68%2C220.62%2C232.37%2C158.47%2C257.49z%22/%3E%0A%09%3C/g%3E%0A%3C/g%3E%0A%3C/svg%3E%0A" height="22" alt="Telia" style="display:block">
+    </div>
+    <div class="topbar-title">Adressdashboard</div>
+  </div>
+  <div class="topbar-right">
+    <div class="last-updated" id="lastUpdated">
+      <div class="dot"></div>
+      <span class="lbl">Senast uppladdad:</span>
+      <span class="val" id="lastUpdatedVal">–</span>
+    </div>
+    <button class="btn-export" id="btnExport"><span class="export-dot"></span> Exportera HTML</button>
+    <label class="btn-primary" style="cursor:pointer">
+      ↑ Ladda ny fil
+      <input type="file" id="fileInput" accept=".xlsx" style="display:none">
+    </label>
+  </div>
+</div>
+
+<main>
+  <!-- KPI Cards -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">TOTALT ADRESSER</div>
+      <div><span class="net-pill np-alla" id="kpi-tot-net">Alla nät</span></div>
+      <div class="kpi-val" id="kpi-tot">–</div>
+      <div class="kpi-sub" id="kpi-tot-sub">–</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">ÅTERSTÅR (budget)</div>
+      <div><span class="net-pill np-alla" id="kpi-ater-net">Alla nät</span></div>
+      <div class="kpi-val" id="kpi-ater">–</div>
+      <div class="kpi-sub" id="kpi-ater-sub">–</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">TILLDELADE</div>
+      <div><span class="net-pill np-alla" id="kpi-till-net">Alla nät</span></div>
+      <div class="kpi-val" id="kpi-till">–</div>
+      <div class="kpi-sub" id="kpi-till-sub">Gul-markerade adresser</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">SÄLJARE KAN VARA</div>
+      <div><span class="net-pill np-alla" id="kpi-salj-net">Alla nät</span></div>
+      <div class="kpi-val" id="kpi-salj">–</div>
+      <div class="kpi-sub" id="kpi-salj-sub"></div>
+      <div class="saljare-inputs">
+        <div class="inp-grp">Dagar: <input id="inp-dagar" type="number" value="18" min="1" max="365"></div>
+        <div class="inp-grp">Bil%: <input id="inp-bil" type="number" value="30" min="0" max="100"></div>
+        <div class="inp-grp">Adr/dag: <input id="inp-adr" type="number" value="30" min="1"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter tabs -->
+  <div class="filter-bar" id="filterBar">
+    <button class="ftab active" data-net="alla"><span class="dot"></span> Alla nät <span class="cnt" id="cnt-alla">–</span></button>
+    <button class="ftab" data-net="telia"><span class="dot"></span> Telia-nät <span class="cnt" id="cnt-telia">–</span></button>
+    <button class="ftab" data-net="lag"><span class="dot"></span> Låg <span class="cnt" id="cnt-lag">–</span></button>
+    <button class="ftab" data-net="hog"><span class="dot"></span> Hög <span class="cnt" id="cnt-hog">–</span></button>
+    <button class="ftab" data-net="special" id="tab-special" style="display:none"><span class="dot"></span> Special <span class="cnt" id="cnt-special">–</span></button>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div>
+      <div class="ctrl-lbl">SÖK ORT</div>
+      <input class="ctrl-inp" id="searchOrt" type="text" placeholder="Skriv ortnamn...">
+    </div>
+    <div style="position:relative">
+      <div class="ctrl-lbl">KOMMUNER</div>
+      <div class="multi-select" id="kommunDropdown">
+        <div class="multi-trigger" id="kommunTrigger">
+          <span id="kommunTriggerText">Välj kommuner...</span>
+          <span class="multi-arrow">&#9662;</span>
+        </div>
+        <div class="multi-panel" id="kommunPanel" style="display:none">
+          <div class="multi-search-wrap">
+            <input class="multi-search" id="kommunSearch" type="text" placeholder="Sök kommun...">
+          </div>
+          <div class="multi-actions">
+            <button class="multi-action-btn" id="kommunSelectAll">Välj alla</button>
+            <button class="multi-action-btn" id="kommunClear">Rensa</button>
+          </div>
+          <div class="multi-list" id="kommunList"></div>
+        </div>
+      </div>
+      <div class="multi-chips" id="kommunChips"></div>
+    </div>
+    <div>
+      <div class="ctrl-lbl">SORTERING</div>
+      <select class="ctrl-inp" id="sortBy">
+        <option value="ater-desc">Flest kvar ↓</option>
+        <option value="ater-asc">Minst kvar ↑</option>
+        <option value="till-desc">Mest tilldelade ↓</option>
+        <option value="totalt-desc">Störst totalt ↓</option>
+        <option value="pct-ater-desc">Högst % kvar ↓</option>
+        <option value="ort-asc">Ort A–Ö</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:var(--brand-mid)"></div> Tilldelade</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--status-high)"></div> &gt;50% kvar</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--status-mid)"></div> 20–50% kvar</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--status-low)"></div> &lt;20% kvar</div>
+    <span class="ort-cnt" id="ort-count">– orter</span>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ORT / KOMMUN</th>
+          <th>NÄT</th>
+          <th>TOTALT</th>
+          <th>TILLDELADE</th>
+          <th>ÅTERSTÅR</th>
+          <th>FRAMSTEG</th>
+          <th>SÄLJARE RYMS</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"><tr><td colspan="7" class="no-res">Laddar data…</td></tr></tbody>
+    </table>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ── Data inbyggd från Excel (läst via cell-färger i kol A) ──────────────────
+// GUL = FFFF00 = tilldelad | BLÅ = 00B0F0 = extra (räknas EJ som tilldelad)
+// Återstår = Totalt - Gul (blå räknas ej)
+const BUILTIN = {"Telia":{"totalt":5006,"gul":33,"bla":10,"orter":[{"Ort":"BROMMA","Kommun":"STOCKHOLM","Totalt":588,"Gul":0,"Bla":0},{"Ort":"ENSKEDE","Kommun":"STOCKHOLM","Totalt":460,"Gul":0,"Bla":0},{"Ort":"SPÅNGA","Kommun":"STOCKHOLM","Totalt":419,"Gul":0,"Bla":0},{"Ort":"SALA","Kommun":"SALA","Totalt":382,"Gul":33,"Bla":10},{"Ort":"ÄLVSJÖ","Kommun":"STOCKHOLM","Totalt":350,"Gul":0,"Bla":0},{"Ort":"HÄGERSTEN","Kommun":"STOCKHOLM","Totalt":302,"Gul":0,"Bla":0},{"Ort":"ÅKERSBERGA","Kommun":"ÖSTERÅKER","Totalt":260,"Gul":0,"Bla":0},{"Ort":"SKÄRHOLMEN","Kommun":"STOCKHOLM","Totalt":235,"Gul":0,"Bla":0},{"Ort":"HÄSSELBY","Kommun":"STOCKHOLM","Totalt":203,"Gul":0,"Bla":0},{"Ort":"DANDERYD","Kommun":"DANDERYD","Totalt":156,"Gul":0,"Bla":0},{"Ort":"DJURSHOLM","Kommun":"DANDERYD","Totalt":133,"Gul":0,"Bla":0},{"Ort":"ENEBYBERG","Kommun":"DANDERYD","Totalt":132,"Gul":0,"Bla":0},{"Ort":"SURAHAMMAR","Kommun":"SURAHAMMAR","Totalt":126,"Gul":0,"Bla":0},{"Ort":"SKÖNDAL","Kommun":"STOCKHOLM","Totalt":122,"Gul":0,"Bla":0},{"Ort":"STOCKSUND","Kommun":"DANDERYD","Totalt":114,"Gul":0,"Bla":0},{"Ort":"KUNGSÖR","Kommun":"KUNGSÖR","Totalt":87,"Gul":0,"Bla":0},{"Ort":"IGGESUND","Kommun":"HUDIKSVALL","Totalt":86,"Gul":0,"Bla":0},{"Ort":"STOCKHOLM","Kommun":"STOCKHOLM","Totalt":84,"Gul":0,"Bla":0},{"Ort":"VÄLLINGBY","Kommun":"STOCKHOLM","Totalt":83,"Gul":0,"Bla":0},{"Ort":"SKARPNÄCK","Kommun":"STOCKHOLM","Totalt":72,"Gul":0,"Bla":0},{"Ort":"VÄSTERFÄRNEBO","Kommun":"SALA","Totalt":63,"Gul":0,"Bla":0},{"Ort":"TORSHÄLLA","Kommun":"ESKILSTUNA","Totalt":54,"Gul":0,"Bla":0},{"Ort":"SALBOHED","Kommun":"SALA","Totalt":51,"Gul":0,"Bla":0},{"Ort":"DELSBO","Kommun":"HUDIKSVALL","Totalt":47,"Gul":0,"Bla":0},{"Ort":"ENSKEDEDALEN","Kommun":"STOCKHOLM","Totalt":47,"Gul":0,"Bla":0},{"Ort":"FARSTA","Kommun":"STOCKHOLM","Totalt":47,"Gul":0,"Bla":0},{"Ort":"HALLSTAHAMMAR","Kommun":"HALLSTAHAMMAR","Totalt":41,"Gul":0,"Bla":0},{"Ort":"BAGARMOSSEN","Kommun":"STOCKHOLM","Totalt":36,"Gul":0,"Bla":0},{"Ort":"ESKILSTUNA","Kommun":"ESKILSTUNA","Totalt":31,"Gul":0,"Bla":0},{"Ort":"HUDIKSVALL","Kommun":"HUDIKSVALL","Totalt":31,"Gul":0,"Bla":0},{"Ort":"ENSKEDE GÅRD","Kommun":"STOCKHOLM","Totalt":27,"Gul":0,"Bla":0},{"Ort":"BJURÅKER","Kommun":"HUDIKSVALL","Totalt":21,"Gul":0,"Bla":0},{"Ort":"VÄSTRA NÄSHULTA","Kommun":"ESKILSTUNA","Totalt":16,"Gul":0,"Bla":0},{"Ort":"BANDHAGEN","Kommun":"STOCKHOLM","Totalt":15,"Gul":0,"Bla":0},{"Ort":"RANSTA","Kommun":"SALA","Totalt":14,"Gul":0,"Bla":0},{"Ort":"ÅSTORP","Kommun":"ÅSTORP","Totalt":14,"Gul":0,"Bla":0},{"Ort":"NÄSHULTA","Kommun":"ESKILSTUNA","Totalt":13,"Gul":0,"Bla":0},{"Ort":"SKULTUNA","Kommun":"SALA","Totalt":10,"Gul":0,"Bla":0},{"Ort":"HYLLINGE","Kommun":"ÅSTORP","Totalt":8,"Gul":0,"Bla":0},{"Ort":"SKOGSTORP","Kommun":"ESKILSTUNA","Totalt":6,"Gul":0,"Bla":0},{"Ort":"KLIPPAN","Kommun":"KLIPPAN","Totalt":6,"Gul":0,"Bla":0},{"Ort":"JOHANNESHOV","Kommun":"STOCKHOLM","Totalt":5,"Gul":0,"Bla":0},{"Ort":"STRÖMSHOLM","Kommun":"HALLSTAHAMMAR","Totalt":4,"Gul":0,"Bla":0},{"Ort":"SÖDERHAMN","Kommun":"SÖDERHAMN","Totalt":2,"Gul":0,"Bla":0},{"Ort":"BÅSTAD","Kommun":"BÅSTAD","Totalt":1,"Gul":0,"Bla":0},{"Ort":"JULITA","Kommun":"ESKILSTUNA","Totalt":1,"Gul":0,"Bla":0},{"Ort":"KVIDINGE","Kommun":"ÅSTORP","Totalt":1,"Gul":0,"Bla":0}]},"LÅG":{"totalt":14932,"gul":183,"bla":43,"orter":[{"Ort":"BOLLNÄS","Kommun":"BOLLNÄS","Totalt":1820,"Gul":0,"Bla":0},{"Ort":"HUDIKSVALL","Kommun":"HUDIKSVALL","Totalt":1279,"Gul":0,"Bla":0},{"Ort":"KLIPPAN","Kommun":"KLIPPAN","Totalt":1152,"Gul":0,"Bla":0},{"Ort":"HALLSTAHAMMAR","Kommun":"HALLSTAHAMMAR","Totalt":952,"Gul":0,"Bla":0},{"Ort":"HÖGANÄS","Kommun":"HÖGANÄS","Totalt":950,"Gul":140,"Bla":43},{"Ort":"BÅSTAD","Kommun":"BÅSTAD","Totalt":948,"Gul":0,"Bla":0},{"Ort":"ÅSTORP","Kommun":"ÅSTORP","Totalt":832,"Gul":0,"Bla":0},{"Ort":"BJUV","Kommun":"BJUV","Totalt":676,"Gul":0,"Bla":0},{"Ort":"VIKEN","Kommun":"HÖGANÄS","Totalt":568,"Gul":0,"Bla":0},{"Ort":"LJUNGBYHED","Kommun":"KLIPPAN","Totalt":491,"Gul":0,"Bla":0},{"Ort":"FÖRSLÖV","Kommun":"BÅSTAD","Totalt":406,"Gul":0,"Bla":0},{"Ort":"KILAFORS","Kommun":"BOLLNÄS","Totalt":335,"Gul":0,"Bla":0},{"Ort":"LERBERGET","Kommun":"HÖGANÄS","Totalt":330,"Gul":0,"Bla":0},{"Ort":"KOLBÄCK","Kommun":"HALLSTAHAMMAR","Totalt":327,"Gul":0,"Bla":0},{"Ort":"ARBRÅ","Kommun":"BOLLNÄS","Totalt":305,"Gul":0,"Bla":0},{"Ort":"JONSTORP","Kommun":"HÖGANÄS","Totalt":279,"Gul":0,"Bla":0},{"Ort":"KVIDINGE","Kommun":"ÅSTORP","Totalt":238,"Gul":0,"Bla":0},{"Ort":"NYHAMNSLÄGE","Kommun":"HÖGANÄS","Totalt":225,"Gul":0,"Bla":0},{"Ort":"VALLSTA","Kommun":"BOLLNÄS","Totalt":220,"Gul":0,"Bla":0},{"Ort":"RENGSJÖ","Kommun":"BOLLNÄS","Totalt":203,"Gul":0,"Bla":0},{"Ort":"DELSBO","Kommun":"HUDIKSVALL","Totalt":197,"Gul":0,"Bla":0},{"Ort":"BJURÅKER","Kommun":"HUDIKSVALL","Totalt":152,"Gul":0,"Bla":0},{"Ort":"STRANDBADEN","Kommun":"HÖGANÄS","Totalt":137,"Gul":0,"Bla":0},{"Ort":"ÅKERSBERGA","Kommun":"ÖSTERÅKER","Totalt":130,"Gul":0,"Bla":0},{"Ort":"SEGERSTA","Kommun":"BOLLNÄS","Totalt":121,"Gul":0,"Bla":0},{"Ort":"GREVIE","Kommun":"BÅSTAD","Totalt":120,"Gul":0,"Bla":0},{"Ort":"EKEBY","Kommun":"BJUV","Totalt":111,"Gul":0,"Bla":0},{"Ort":"FORSA","Kommun":"HUDIKSVALL","Totalt":111,"Gul":0,"Bla":0},{"Ort":"ÖSTRA LJUNGBY","Kommun":"KLIPPAN","Totalt":110,"Gul":0,"Bla":0},{"Ort":"TOREKOV","Kommun":"BÅSTAD","Totalt":108,"Gul":0,"Bla":0},{"Ort":"STRÖMSHOLM","Kommun":"HALLSTAHAMMAR","Totalt":103,"Gul":0,"Bla":0},{"Ort":"ENÅNGER","Kommun":"HUDIKSVALL","Totalt":94,"Gul":0,"Bla":0},{"Ort":"NÄSVIKEN","Kommun":"HUDIKSVALL","Totalt":94,"Gul":0,"Bla":0},{"Ort":"VÄSTRA KARUP","Kommun":"BÅSTAD","Totalt":93,"Gul":0,"Bla":0},{"Ort":"MJÖHULT","Kommun":"HÖGANÄS","Totalt":73,"Gul":41,"Bla":0},{"Ort":"NYVÅNG","Kommun":"ÅSTORP","Totalt":70,"Gul":0,"Bla":0},{"Ort":"ÖSTRA KARUP","Kommun":"BÅSTAD","Totalt":57,"Gul":0,"Bla":0},{"Ort":"IGGESUND","Kommun":"HUDIKSVALL","Totalt":57,"Gul":0,"Bla":0},{"Ort":"FARHULT","Kommun":"HÖGANÄS","Totalt":54,"Gul":0,"Bla":0},{"Ort":"SURAHAMMAR","Kommun":"SURAHAMMAR","Totalt":44,"Gul":0,"Bla":0},{"Ort":"MÖLLE","Kommun":"HÖGANÄS","Totalt":43,"Gul":0,"Bla":0},{"Ort":"NJUTÅNGER","Kommun":"HUDIKSVALL","Totalt":38,"Gul":0,"Bla":0},{"Ort":"SKÄRET","Kommun":"HÖGANÄS","Totalt":38,"Gul":0,"Bla":0},{"Ort":"VEJBYSTRAND","Kommun":"BÅSTAD","Totalt":37,"Gul":0,"Bla":0},{"Ort":"ARILD","Kommun":"HÖGANÄS","Totalt":35,"Gul":0,"Bla":0},{"Ort":"ESKILSTUNA","Kommun":"ESKILSTUNA","Totalt":29,"Gul":0,"Bla":0},{"Ort":"LJUSTERÖ","Kommun":"ÖSTERÅKER","Totalt":16,"Gul":0,"Bla":0},{"Ort":"SALA","Kommun":"SALA","Totalt":13,"Gul":0,"Bla":0},{"Ort":"HYLLINGE","Kommun":"ÅSTORP","Totalt":13,"Gul":0,"Bla":0},{"Ort":"BILLESHOLM","Kommun":"BJUV","Totalt":12,"Gul":2,"Bla":0},{"Ort":"RAMNÄS","Kommun":"SURAHAMMAR","Totalt":11,"Gul":0,"Bla":0},{"Ort":"LJUSDAL","Kommun":"HUDIKSVALL","Totalt":9,"Gul":0,"Bla":0},{"Ort":"VALSKOG","Kommun":"KUNGSÖR","Totalt":8,"Gul":0,"Bla":0},{"Ort":"RANSTA","Kommun":"SALA","Totalt":8,"Gul":0,"Bla":0},{"Ort":"ÄRLA","Kommun":"ESKILSTUNA","Totalt":5,"Gul":0,"Bla":0},{"Ort":"KUNGSÖR","Kommun":"KUNGSÖR","Totalt":5,"Gul":0,"Bla":0},{"Ort":"VIRSBO","Kommun":"SURAHAMMAR","Totalt":4,"Gul":0,"Bla":0},{"Ort":"STORA SUNDBY","Kommun":"ESKILSTUNA","Totalt":3,"Gul":0,"Bla":0},{"Ort":"KÖPING","Kommun":"KUNGSÖR","Totalt":3,"Gul":0,"Bla":0},{"Ort":"BAGARMOSSEN","Kommun":"STOCKHOLM","Totalt":3,"Gul":0,"Bla":0},{"Ort":"HÄGERSTEN","Kommun":"STOCKHOLM","Totalt":3,"Gul":0,"Bla":0},{"Ort":"ÄLVSJÖ","Kommun":"STOCKHOLM","Totalt":3,"Gul":0,"Bla":0},{"Ort":"INGMARSÖ","Kommun":"ÖSTERÅKER","Totalt":3,"Gul":0,"Bla":0},{"Ort":"HASSELA","Kommun":"HUDIKSVALL","Totalt":2,"Gul":0,"Bla":0},{"Ort":"PERSTORP","Kommun":"KLIPPAN","Totalt":2,"Gul":0,"Bla":0},{"Ort":"OCKELBO","Kommun":"OCKELBO","Totalt":2,"Gul":0,"Bla":0},{"Ort":"BROMMA","Kommun":"STOCKHOLM","Totalt":2,"Gul":0,"Bla":0},{"Ort":"VÄLLINGBY","Kommun":"STOCKHOLM","Totalt":2,"Gul":0,"Bla":0},{"Ort":"KÅGERÖD","Kommun":"BJUV","Totalt":1,"Gul":0,"Bla":0},{"Ort":"JÄRVSÖ","Kommun":"BOLLNÄS","Totalt":1,"Gul":0,"Bla":0},{"Ort":"HUSBY-REKARNE","Kommun":"ESKILSTUNA","Totalt":1,"Gul":0,"Bla":0},{"Ort":"HÅLLSTA","Kommun":"ESKILSTUNA","Totalt":1,"Gul":0,"Bla":0},{"Ort":"KVICKSUND","Kommun":"ESKILSTUNA","Totalt":1,"Gul":0,"Bla":0},{"Ort":"SKOGSTORP","Kommun":"ESKILSTUNA","Totalt":1,"Gul":0,"Bla":0},{"Ort":"SKÄRHOLMEN","Kommun":"STOCKHOLM","Totalt":1,"Gul":0,"Bla":0},{"Ort":"SKÖNDAL","Kommun":"STOCKHOLM","Totalt":1,"Gul":0,"Bla":0}]},"HÖG":{"totalt":18619,"gul":1204,"bla":219,"orter":[{"Ort":"ESKILSTUNA","Kommun":"ESKILSTUNA","Totalt":4281,"Gul":0,"Bla":0},{"Ort":"ÅKERSBERGA","Kommun":"ÖSTERÅKER","Totalt":3738,"Gul":0,"Bla":0},{"Ort":"TORSHÄLLA","Kommun":"ESKILSTUNA","Totalt":722,"Gul":0,"Bla":0},{"Ort":"SALA","Kommun":"SALA","Totalt":600,"Gul":30,"Bla":14},{"Ort":"SURAHAMMAR","Kommun":"SURAHAMMAR","Totalt":592,"Gul":193,"Bla":22},{"Ort":"HÄSSELBY","Kommun":"STOCKHOLM","Totalt":497,"Gul":0,"Bla":0},{"Ort":"BILLESHOLM","Kommun":"BJUV","Totalt":488,"Gul":93,"Bla":26},{"Ort":"SKOGSTORP","Kommun":"ESKILSTUNA","Totalt":486,"Gul":0,"Bla":0},{"Ort":"EKEBY","Kommun":"BJUV","Totalt":466,"Gul":130,"Bla":0},{"Ort":"ÖSTERSKÄR","Kommun":"ÖSTERÅKER","Totalt":439,"Gul":0,"Bla":0},{"Ort":"SKÄRHOLMEN","Kommun":"STOCKHOLM","Totalt":404,"Gul":0,"Bla":0},{"Ort":"VÄLLINGBY","Kommun":"STOCKHOLM","Totalt":347,"Gul":0,"Bla":0},{"Ort":"BROMMA","Kommun":"STOCKHOLM","Totalt":319,"Gul":0,"Bla":0},{"Ort":"ÄLVSJÖ","Kommun":"STOCKHOLM","Totalt":289,"Gul":0,"Bla":0},{"Ort":"KVICKSUND","Kommun":"ESKILSTUNA","Totalt":249,"Gul":91,"Bla":37},{"Ort":"ÄRLA","Kommun":"ESKILSTUNA","Totalt":227,"Gul":0,"Bla":0},{"Ort":"KUNGSÖR","Kommun":"ESKILSTUNA","Totalt":225,"Gul":0,"Bla":0},{"Ort":"LJUSTERÖ","Kommun":"ÖSTERÅKER","Totalt":218,"Gul":0,"Bla":0},{"Ort":"FARSTA","Kommun":"STOCKHOLM","Totalt":210,"Gul":0,"Bla":0},{"Ort":"SPÅNGA","Kommun":"STOCKHOLM","Totalt":193,"Gul":0,"Bla":0},{"Ort":"OCKELBO","Kommun":"OCKELBO","Totalt":188,"Gul":0,"Bla":0},{"Ort":"RAMNÄS","Kommun":"SURAHAMMAR","Totalt":187,"Gul":103,"Bla":22},{"Ort":"BANDHAGEN","Kommun":"STOCKHOLM","Totalt":173,"Gul":0,"Bla":0},{"Ort":"RANSTA","Kommun":"SALA","Totalt":168,"Gul":63,"Bla":24},{"Ort":"HÄGERSTEN","Kommun":"STOCKHOLM","Totalt":168,"Gul":0,"Bla":0},{"Ort":"DJURSHOLM","Kommun":"DANDERYD","Totalt":160,"Gul":0,"Bla":0},{"Ort":"VIRSBO","Kommun":"SURAHAMMAR","Totalt":142,"Gul":61,"Bla":19},{"Ort":"SKÖNDAL","Kommun":"STOCKHOLM","Totalt":139,"Gul":0,"Bla":0},{"Ort":"FORSA","Kommun":"HUDIKSVALL","Totalt":136,"Gul":92,"Bla":10},{"Ort":"DELSBO","Kommun":"HUDIKSVALL","Totalt":133,"Gul":0,"Bla":0},{"Ort":"NÄSVIKEN","Kommun":"HUDIKSVALL","Totalt":132,"Gul":62,"Bla":0},{"Ort":"HALLSTAHAMMAR","Kommun":"HALLSTAHAMMAR","Totalt":121,"Gul":0,"Bla":0},{"Ort":"HYLLINGE","Kommun":"ÅSTORP","Totalt":117,"Gul":72,"Bla":18},{"Ort":"MÖKLINTA","Kommun":"SALA","Totalt":112,"Gul":0,"Bla":0},{"Ort":"BAGARMOSSEN","Kommun":"STOCKHOLM","Totalt":103,"Gul":0,"Bla":0},{"Ort":"HÅLLSTA","Kommun":"ESKILSTUNA","Totalt":94,"Gul":0,"Bla":0},{"Ort":"VÄSTERFÄRNEBO","Kommun":"SALA","Totalt":86,"Gul":0,"Bla":0},{"Ort":"STORA SUNDBY","Kommun":"ESKILSTUNA","Totalt":85,"Gul":0,"Bla":0},{"Ort":"NJUTÅNGER","Kommun":"HUDIKSVALL","Totalt":82,"Gul":62,"Bla":19},{"Ort":"VALSKOG","Kommun":"KUNGSÖR","Totalt":81,"Gul":0,"Bla":0},{"Ort":"HUDIKSVALL","Kommun":"HUDIKSVALL","Totalt":75,"Gul":0,"Bla":0},{"Ort":"ÅSTORP","Kommun":"BJUV","Totalt":74,"Gul":0,"Bla":0},{"Ort":"KOLBÄCK","Kommun":"HALLSTAHAMMAR","Totalt":73,"Gul":0,"Bla":0},{"Ort":"ENÅNGER","Kommun":"HUDIKSVALL","Totalt":72,"Gul":30,"Bla":8},{"Ort":"SKARPNÄCK","Kommun":"STOCKHOLM","Totalt":68,"Gul":0,"Bla":0},{"Ort":"BJUV","Kommun":"BJUV","Totalt":60,"Gul":48,"Bla":0},{"Ort":"IGGESUND","Kommun":"HUDIKSVALL","Totalt":59,"Gul":59,"Bla":0},{"Ort":"HUSBY-REKARNE","Kommun":"ESKILSTUNA","Totalt":55,"Gul":0,"Bla":0},{"Ort":"BJURÅKER","Kommun":"HUDIKSVALL","Totalt":46,"Gul":0,"Bla":0},{"Ort":"KLIPPAN","Kommun":"KLIPPAN","Totalt":46,"Gul":0,"Bla":0},{"Ort":"KÖPING","Kommun":"HALLSTAHAMMAR","Totalt":40,"Gul":0,"Bla":0},{"Ort":"HOLMSVEDEN","Kommun":"SÖDERHAMN","Totalt":36,"Gul":0,"Bla":0},{"Ort":"KVIDINGE","Kommun":"ÅSTORP","Totalt":31,"Gul":0,"Bla":0},{"Ort":"ENSKEDE","Kommun":"STOCKHOLM","Totalt":30,"Gul":0,"Bla":0},{"Ort":"STRÅTJÄRA","Kommun":"SÖDERHAMN","Totalt":23,"Gul":0,"Bla":0},{"Ort":"PERSTORP","Kommun":"KLIPPAN","Totalt":21,"Gul":0,"Bla":0},{"Ort":"INGMARSÖ","Kommun":"ÖSTERÅKER","Totalt":20,"Gul":0,"Bla":0},{"Ort":"VALLVIK","Kommun":"SÖDERHAMN","Totalt":18,"Gul":0,"Bla":0},{"Ort":"NÄSHULTA","Kommun":"ESKILSTUNA","Totalt":17,"Gul":0,"Bla":0},{"Ort":"SÖDERHAMN","Kommun":"SÖDERHAMN","Totalt":17,"Gul":0,"Bla":0},{"Ort":"HÖGANÄS","Kommun":"HÖGANÄS","Totalt":15,"Gul":15,"Bla":0},{"Ort":"ARBRÅ","Kommun":"BOLLNÄS","Totalt":14,"Gul":0,"Bla":0},{"Ort":"KILAFORS","Kommun":"BOLLNÄS","Totalt":11,"Gul":0,"Bla":0},{"Ort":"LJUNGBYHED","Kommun":"KLIPPAN","Totalt":11,"Gul":0,"Bla":0},{"Ort":"BOLLNÄS","Kommun":"BOLLNÄS","Totalt":10,"Gul":0,"Bla":0},{"Ort":"ARBOGA","Kommun":"ESKILSTUNA","Totalt":10,"Gul":0,"Bla":0},{"Ort":"ENEBYBERG","Kommun":"DANDERYD","Totalt":9,"Gul":0,"Bla":0},{"Ort":"ÖSTRA KARUP","Kommun":"BÅSTAD","Totalt":8,"Gul":0,"Bla":0},{"Ort":"STOCKSUND","Kommun":"DANDERYD","Totalt":8,"Gul":0,"Bla":0},{"Ort":"KRYLBO","Kommun":"SALA","Totalt":8,"Gul":0,"Bla":0},{"Ort":"VALLSTA","Kommun":"BOLLNÄS","Totalt":7,"Gul":0,"Bla":0},{"Ort":"SALBOHED","Kommun":"SALA","Totalt":7,"Gul":0,"Bla":0},{"Ort":"DANDERYD","Kommun":"DANDERYD","Totalt":6,"Gul":0,"Bla":0},{"Ort":"ENSKEDEDALEN","Kommun":"STOCKHOLM","Totalt":4,"Gul":0,"Bla":0},{"Ort":"HUSARÖ","Kommun":"ÖSTERÅKER","Totalt":4,"Gul":0,"Bla":0},{"Ort":"STRÖMSHOLM","Kommun":"HALLSTAHAMMAR","Totalt":3,"Gul":0,"Bla":0},{"Ort":"KÅGERÖD","Kommun":"BJUV","Totalt":1,"Gul":0,"Bla":0},{"Ort":"RENGSJÖ","Kommun":"BOLLNÄS","Totalt":1,"Gul":0,"Bla":0},{"Ort":"LAHOLM","Kommun":"BÅSTAD","Totalt":1,"Gul":0,"Bla":0},{"Ort":"VIKEN","Kommun":"HÖGANÄS","Totalt":1,"Gul":0,"Bla":0},{"Ort":"BILLINGE","Kommun":"KLIPPAN","Totalt":1,"Gul":0,"Bla":0},{"Ort":"ENSKEDE GÅRD","Kommun":"STOCKHOLM","Totalt":1,"Gul":0,"Bla":0}]}};
+
+// ── State ────────────────────────────────────────────────────────────────────
+let DATA = BUILTIN;
+let allRows = [];
+let net = 'alla', search = '', kommuner = new Set(), selectedOrts = new Set(), sort = 'ater-desc', selectedRow = null;
+let dagar = 18, bil = 30, adr = 30;
+
+function buildRows(data) {
+  const rows = [];
+  Object.keys(data).forEach(n => {
+    (data[n]?.orter || []).forEach(o => {
+      rows.push({ Ort: o.Ort, Kommun: o.Kommun, Nät: n, Totalt: o.Totalt, Gul: o.Gul, Bla: o.Bla });
+    });
+  });
+  return rows;
+}
+
+function getFiltered() {
+  let rows = allRows;
+  if (net === 'telia')        rows = rows.filter(r => r.Nät === 'Telia');
+  else if (net === 'lag')     rows = rows.filter(r => r.Nät === 'LÅG');
+  else if (net === 'hog')     rows = rows.filter(r => r.Nät === 'HÖG');
+  else if (net === 'special') rows = rows.filter(r => r.Nät === 'Special');
+  if (search) rows = rows.filter(r => r.Ort.toLowerCase().includes(search));
+  if (kommuner.size > 0) rows = rows.filter(r => kommuner.has(r.Kommun));
+  rows = [...rows];
+  const ater = r => r.Totalt - r.Gul;
+  if (sort === 'ater-desc')        rows.sort((a,b) => ater(b) - ater(a));
+  else if (sort === 'ater-asc')    rows.sort((a,b) => ater(a) - ater(b));
+  else if (sort === 'till-desc')   rows.sort((a,b) => b.Gul - a.Gul);
+  else if (sort === 'totalt-desc') rows.sort((a,b) => b.Totalt - a.Totalt);
+  else if (sort === 'pct-ater-desc') rows.sort((a,b) => (ater(b)/b.Totalt) - (ater(a)/a.Totalt));
+  else if (sort === 'ort-asc')     rows.sort((a,b) => a.Ort.localeCompare(b.Ort, 'sv'));
+  return rows;
+}
+
+// Returns rows filtered by selectedOrts (for KPI cards when orts are clicked)
+function getKpiRows() {
+  if (selectedOrts.size === 0) return getFiltered();
+  return getFiltered().filter(r => selectedOrts.has(r.Ort + '|' + r.Nät));
+}
+
+function fmt(n) { return n.toLocaleString('sv-SE'); }
+
+function netLbl(n) {
+  if (n === 'Telia')               return 'Telia';
+  if (n.toUpperCase() === 'LÅG')   return 'Låg';
+  if (n.toUpperCase() === 'HÖG')   return 'Hög';
+  if (n === 'Special')             return 'Special';
+  return n;
+}
+function netCls(n) {
+  if (n === 'Telia')             return 'nb-telia';
+  if (n.toUpperCase() === 'LÅG') return 'nb-lag';
+  if (n.toUpperCase() === 'HÖG') return 'nb-hog';
+  if (n === 'Special')           return 'nb-special';
+  return 'nb-telia';
+}
+
+// Normalize sheet name to internal net key
+function netKey(sheetName) {
+  if (sheetName === 'Telia')                return 'Telia';
+  if (sheetName.toUpperCase() === 'LÅG')    return 'LÅG';
+  if (sheetName.toUpperCase() === 'HÖG')    return 'HÖG';
+  if (sheetName === 'Special')              return 'Special';
+  return sheetName;
+}
+
+// Status dot color based on % ÅTERSTÅR – uses CSS variables
+function dotC(gul, tot) {
+  const pctAter = tot > 0 ? (tot - gul) / tot * 100 : 0;
+  if (pctAter > 50) return 'var(--status-high)';
+  if (pctAter > 20) return 'var(--status-mid)';
+  return 'var(--status-low)';
+}
+
+function pillCls() {
+  if (net==='telia')   return 'np-telia';
+  if (net==='lag')     return 'np-lag';
+  if (net==='hog')     return 'np-hog';
+  if (net==='special') return 'np-special';
+  return 'np-alla';
+}
+function pillTxt() {
+  if (net==='telia')   return 'Telia-nät';
+  if (net==='lag')     return 'Låg nät';
+  if (net==='hog')     return 'Hög nät';
+  if (net==='special') return 'Special';
+  return 'Alla nät';
+}
+
+// Säljare-formel enligt manualen:
+// Säljare = (Återstående × (1 − Bil%)) ÷ (Adr/dag × Dagar)
+function saljareFormel(ater) {
+  const fotAter = ater * (1 - bil / 100);
+  const kapPerSalj = adr * dagar;
+  if (kapPerSalj <= 0) return 0;
+  return fotAter / kapPerSalj;
+}
+
+function render() {
+  const rows = getFiltered();
+  const kpiRows = getKpiRows();  // may be subset if orts are selected
+
+  // KPI values from kpiRows (respects ort selection)
+  const totalt = kpiRows.reduce((s,r) => s + r.Totalt, 0);
+  const gul    = kpiRows.reduce((s,r) => s + r.Gul, 0);
+  const ater   = totalt - gul;
+  const pTill  = totalt > 0 ? (gul / totalt * 100).toFixed(1) : '0.0';
+  const pAter  = totalt > 0 ? (ater / totalt * 100).toFixed(1) : '0.0';
+  const salj   = saljareFormel(ater);
+  const saljStr = salj < 1 ? (salj > 0 ? '<1' : '0') : Math.ceil(salj).toString();
+  const uOrter = [...new Set(kpiRows.map(r => r.Ort))].length;
+  const pc = pillCls(), pt = pillTxt();
+
+  // KPI pill label – show selected orts if any
+  const kpiLabel = selectedOrts.size > 0
+    ? (selectedOrts.size === 1 ? [...selectedOrts][0].split('|')[0] : selectedOrts.size + ' orter valda')
+    : pt;
+
+  ['kpi-tot-net','kpi-ater-net','kpi-till-net','kpi-salj-net'].forEach(id => {
+    const el = document.getElementById(id);
+    el.textContent = kpiLabel; el.className = 'net-pill ' + pc;
+  });
+  document.getElementById('kpi-tot').textContent  = fmt(totalt);
+  document.getElementById('kpi-tot-sub').textContent = uOrter + ' orter';
+  document.getElementById('kpi-ater').textContent = fmt(ater);
+  document.getElementById('kpi-ater-sub').textContent = pAter + '% av totalt återstår';
+  document.getElementById('kpi-till').textContent = fmt(gul);
+  document.getElementById('kpi-till-sub').textContent = pTill + '% av totalt · gul-markerade adresser';
+  document.getElementById('kpi-salj').textContent = saljStr;
+  document.getElementById('kpi-salj-sub').textContent =
+    fmt(ater) + ' fotgångaradr · ' + dagar + 'd · ' + adr + 'adr/dag';
+
+  // Tab counts
+  document.getElementById('cnt-alla').textContent  = [...new Set(allRows.map(r=>r.Ort))].length;
+  document.getElementById('cnt-telia').textContent = [...new Set(allRows.filter(r=>r.Nät==='Telia').map(r=>r.Ort))].length;
+  document.getElementById('cnt-lag').textContent   = [...new Set(allRows.filter(r=>r.Nät==='LÅG').map(r=>r.Ort))].length;
+  document.getElementById('cnt-hog').textContent   = [...new Set(allRows.filter(r=>r.Nät==='HÖG').map(r=>r.Ort))].length;
+  const specialRows = allRows.filter(r=>r.Nät==='Special');
+  const tabSpecial = document.getElementById('tab-special');
+  if (specialRows.length > 0) {
+    tabSpecial.style.display = '';
+    document.getElementById('cnt-special').textContent = [...new Set(specialRows.map(r=>r.Ort))].length;
+  } else {
+    tabSpecial.style.display = 'none';
+  }
+
+  document.getElementById('ort-count').textContent = rows.length + ' orter' +
+    (selectedOrts.size > 0 ? ' · ' + selectedOrts.size + ' markerade' : '');
+
+  // Populate multi-select kommuner list (from net-filtered base, not kommun-filtered rows)
+  const baseRows = (() => {
+    let r = allRows;
+    if (net === 'telia')        r = r.filter(x => x.Nät === 'Telia');
+    else if (net === 'lag')     r = r.filter(x => x.Nät === 'LÅG');
+    else if (net === 'hog')     r = r.filter(x => x.Nät === 'HÖG');
+    else if (net === 'special') r = r.filter(x => x.Nät === 'Special');
+    return r;
+  })();
+  const allKommuner = [...new Set(baseRows.map(r=>r.Kommun).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'sv'));
+  const searchVal = document.getElementById('kommunSearch').value.toLowerCase();
+  const filtered = searchVal ? allKommuner.filter(k => k.toLowerCase().includes(searchVal)) : allKommuner;
+  document.getElementById('kommunList').innerHTML = filtered.map(k => `
+    <div class="multi-item ${kommuner.has(k)?'checked':''}" data-k="${k}">
+      <div class="multi-checkbox">${kommuner.has(k)?'✓':''}</div>
+      <span>${k}</span>
+    </div>`).join('');
+
+  // Chips
+  const chipsEl = document.getElementById('kommunChips');
+  chipsEl.innerHTML = [...kommuner].map(k =>
+    `<span class="chip">${k}<span class="chip-x" data-k="${k}">&times;</span></span>`).join('');
+  const triggerText = document.getElementById('kommunTriggerText');
+  triggerText.textContent = kommuner.size === 0 ? 'Välj kommuner...'
+    : kommuner.size === 1 ? [...kommuner][0]
+    : kommuner.size + ' kommuner valda';
+
+  // Table
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="no-res">Inga orter matchar.</td></tr>'; return; }
+
+  tbody.innerHTML = rows.map((r, i) => {
+    const rAter = r.Totalt - r.Gul;
+    const pctGul = r.Totalt > 0 ? (r.Gul / r.Totalt * 100) : 0;
+    const salj2 = saljareFormel(rAter);
+    const sStr = salj2 < 1 ? (salj2 > 0.05 ? '&lt;1' : '–') : Math.ceil(salj2).toString();
+    const sCls = salj2 < 1 ? 'salj-badge low' : 'salj-badge';
+    const dc = dotC(r.Gul, r.Totalt);
+    const progPct = Math.min(pctGul, 100).toFixed(1);
+    const ortKey = r.Ort + '|' + r.Nät;
+    const isOrtSel = selectedOrts.has(ortKey);
+    return `<tr data-idx="${i}" data-ort="${ortKey}" class="${isOrtSel?'ort-selected':''}">
+      <td><div class="ort-cell">
+        <div class="r-dot" style="background:${dc}"></div>
+        <div><div class="ort-name">${r.Ort}</div><div class="ort-sub">${r.Kommun||''}</div></div>
+      </div></td>
+      <td><span class="net-badge ${netCls(r.Nät)}">${netLbl(r.Nät)}</span></td>
+      <td class="td-num">${fmt(r.Totalt)}</td>
+      <td class="td-till">${fmt(r.Gul)}</td>
+      <td class="td-ater">${fmt(rAter)}</td>
+      <td>
+        <div class="prog-wrap">
+          <div class="prog-bg"><div class="prog-fill" style="width:${progPct}%"></div></div>
+          <span class="prog-pct">${pctGul.toFixed(0)}%</span>
+        </div>
+      </td>
+      <td><span class="${sCls}">${sStr}</span></td>
+    </tr>`;
+  }).join('');
+
+  // Row click – toggles ort in selectedOrts, updates KPI cards
+  tbody.querySelectorAll('tr').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const ortKey = tr.dataset.ort;
+      if (!ortKey) return;
+      if (selectedOrts.has(ortKey)) selectedOrts.delete(ortKey);
+      else selectedOrts.add(ortKey);
+      render();
+    });
+  });
+}
+
+// ── Excel file upload (reads cell colors from kol A) ─────────────────────────
+document.getElementById('fileInput').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // Update last uploaded timestamp
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('sv-SE', { day:'numeric', month:'long', year:'numeric' });
+  const timeStr = now.toLocaleTimeString('sv-SE', { hour:'2-digit', minute:'2-digit' });
+  document.getElementById('lastUpdatedVal').textContent = dateStr + ' · ' + timeStr;
+  const lu = document.getElementById('lastUpdated');
+  lu.classList.add('fresh');
+  setTimeout(() => lu.classList.remove('fresh'), 5000);
+
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array', cellStyles: true });
+
+  // Accepted sheet names (case-insensitive match → normalized key)
+  const SHEET_MAP = { 'telia':'Telia', 'låg':'LÅG', 'hög':'HÖG', 'special':'Special' };
+
+  const parsed = {};
+
+  for (const rawName of wb.SheetNames) {
+    const key = SHEET_MAP[rawName.toLowerCase()];
+    if (!key) continue; // skip 'Alla' and unknown sheets
+
+    const ws = wb.Sheets[rawName];
+    if (!ws || !ws['!ref']) continue;
+    const range = XLSX.utils.decode_range(ws['!ref']);
+
+    // ── Find column indices by header name ──────────────────────────────────
+    const headerRow = range.s.r;
+    let colAdress = 0, colOrt = -1, colKommun = -1;
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const cell = ws[XLSX.utils.encode_cell({r: headerRow, c: C})];
+      const val = cell?.v ? String(cell.v).trim().toLowerCase() : '';
+      if (val === 'ort')                           colOrt    = C;
+      if (val === 'municipality' || val === 'kommun') colKommun = C;
+      // Adress is always column A (index 0) per Telia file spec
+    }
+    if (colOrt === -1) continue; // can't process without Ort column
+
+    const orter = {};
+    let totalt = 0, gul = 0, bla = 0;
+
+    for (let R = headerRow + 1; R <= range.e.r; R++) {
+      const cellA = ws[XLSX.utils.encode_cell({r:R, c:colAdress})];
+      const cellOrt = ws[XLSX.utils.encode_cell({r:R, c:colOrt})];
+      const cellKom = colKommun >= 0 ? ws[XLSX.utils.encode_cell({r:R, c:colKommun})] : null;
+      if (!cellOrt?.v) continue;
+
+      const ort     = String(cellOrt.v).trim().toUpperCase();
+      const kommunV = cellKom?.v ? String(cellKom.v).trim().toUpperCase() : '';
+      totalt++;
+
+      let isGul = false, isBla = false;
+      const bg = cellA?.s?.fgColor?.rgb || cellA?.s?.bgColor?.rgb || '';
+      if (bg && bg !== '00000000' && bg !== 'FFFFFFFF') {
+        if (bg.includes('FFFF00')) { isGul = true; gul++; }
+        else if (bg.includes('00B0F0') || bg.includes('0070C0')) { isBla = true; bla++; }
+      }
+
+      if (!orter[ort]) orter[ort] = { Ort: ort, Kommun: kommunV, Totalt: 0, Gul: 0, Bla: 0 };
+      orter[ort].Totalt++;
+      if (isGul) orter[ort].Gul++;
+      if (isBla) orter[ort].Bla++;
+    }
+
+    parsed[key] = {
+      totalt, gul, bla,
+      orter: Object.values(orter).sort((a,b) => b.Totalt - a.Totalt)
+    };
+  }
+
+  DATA = parsed;
+  allRows = buildRows(DATA);
+  selectedRow = null;
+  render();
+  document.getElementById('btnExport').classList.add('visible');
+});
+
+// ── Event listeners ──────────────────────────────────────────────────────────
+document.getElementById('filterBar').addEventListener('click', e => {
+  const btn = e.target.closest('.ftab');
+  if (!btn) return;
+  document.querySelectorAll('.ftab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  net = btn.dataset.net;
+  kommuner.clear(); selectedOrts.clear(); search = '';
+  document.getElementById('kommunSearch').value = '';
+  document.getElementById('searchOrt').value = '';
+  render();
+});
+
+document.getElementById('searchOrt').addEventListener('input', e => {
+  search = e.target.value.toLowerCase().trim(); selectedOrts.clear(); render();
+});
+document.getElementById('sortBy').addEventListener('change', e => {
+  sort = e.target.value; render();
+});
+['inp-dagar','inp-bil','inp-adr'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    dagar = parseInt(document.getElementById('inp-dagar').value) || 1;
+    bil   = parseInt(document.getElementById('inp-bil').value)   || 0;
+    adr   = parseInt(document.getElementById('inp-adr').value)   || 1;
+    render();
+  });
+});
+
+// ── Multi-select dropdown logic ───────────────────────────────────────────────
+const trigger  = document.getElementById('kommunTrigger');
+const panel    = document.getElementById('kommunPanel');
+const ksearch  = document.getElementById('kommunSearch');
+
+trigger.addEventListener('click', () => {
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  trigger.classList.toggle('open', !open);
+  if (!open) ksearch.focus();
+});
+
+// Close when clicking outside – but NOT when click was inside the dropdown
+document.addEventListener('click', e => {
+  if (!document.getElementById('kommunDropdown').contains(e.target) &&
+      !document.getElementById('kommunChips').contains(e.target)) {
+    panel.style.display = 'none';
+    trigger.classList.remove('open');
+  }
+});
+
+// Search inside dropdown
+ksearch.addEventListener('input', () => render());
+
+// Click on a kommunList item – stopPropagation so the "close outside" listener never fires
+document.getElementById('kommunList').addEventListener('click', e => {
+  e.stopPropagation();
+  const item = e.target.closest('.multi-item');
+  if (!item) return;
+  const k = item.dataset.k;
+  if (kommuner.has(k)) kommuner.delete(k);
+  else kommuner.add(k);
+  selectedOrts.clear();
+  // Re-render but keep panel open by saving and restoring panel state
+  const wasOpen = panel.style.display !== 'none';
+  render();
+  if (wasOpen) {
+    panel.style.display = 'block';
+    trigger.classList.add('open');
+  }
+});
+
+// Chips – remove on X click
+document.getElementById('kommunChips').addEventListener('click', e => {
+  const x = e.target.closest('.chip-x');
+  if (!x) return;
+  kommuner.delete(x.dataset.k);
+  selectedOrts.clear();
+  render();
+});
+
+// Välj alla / Rensa
+document.getElementById('kommunSelectAll').addEventListener('click', () => {
+  const all = [...document.querySelectorAll('#kommunList .multi-item')].map(el => el.dataset.k);
+  all.forEach(k => kommuner.add(k));
+  selectedOrts.clear(); render();
+});
+document.getElementById('kommunClear').addEventListener('click', () => {
+  kommuner.clear(); selectedOrts.clear(); render();
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+document.getElementById('btnExport').addEventListener('click', () => {
+  const html = document.documentElement.outerHTML;
+  const dataJson = JSON.stringify(DATA);
+  const updated = html.replace(
+    /const BUILTIN = \{[\s\S]*?\};/,
+    'const BUILTIN = ' + dataJson + ';'
+  ).replace('class="btn-export visible"', 'class="btn-export"');
+
+  const blob = new Blob([updated], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Telia_Dashboard.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+
+  const btn = document.getElementById('btnExport');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '✓ Exporterad!';
+  btn.style.background = 'var(--brand-light)';
+  setTimeout(() => { btn.innerHTML = orig; btn.style.background = ''; }, 2500);
+});
+
+allRows = buildRows(DATA);
+render();
+</script>
+</body>
+</html>
